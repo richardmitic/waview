@@ -120,7 +120,6 @@ class ChannelDisplay():
             start: Starting point as proportion of total length, i.e. from 0. to 1.
             end: Ending point as proportion of total length, i.e. from 0. to 1.
         """
-        # self.screen.clear()
         self.screen.box()
         offset = int(self.wave.nsamples * start)
         nsamples = int(self.wave.nsamples * (end-start))
@@ -129,9 +128,7 @@ class ChannelDisplay():
         if zoom < 100:
             self.draw_samples(offset, nsamples)
         else:
-            log(self.wave.nsamples, offset, nsamples, start, end)
             self.draw_peaks(offset, nsamples)
-        # self.screen.refresh()
 
 
 class App():
