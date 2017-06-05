@@ -33,6 +33,13 @@ class Wave():
         self.sr = None
         self.nchannels = 1
 
+    def nsamples():
+        doc = "The nsamples property."
+        def fget(self):
+            return len(self.samples[0])
+        return locals()
+    nsamples = property(**nsamples())
+
     @staticmethod
     def frames_to_channels(samples):
         "Convert frame-based samples to channel-based"
@@ -48,10 +55,9 @@ class Wave():
             self.nchannels = 1
             self.samples = np.array([self.samples]) # Se we can still index the only channel
 
-    def get_samples(self, offset, num_samples, channel, num_chunks=1):
+    def get_samples(self, offset=0, num_samples=None, channel=0, num_chunks=1):
         samps = self.samples[channel]
-        offset = 0 if offset is None else offset
-        num_samples = len(samps) if num_samples is None else num_samples
+        num_samples = len(samps)-offset if num_samples is None else num_samples
 
         start = clip(offset, 0, len(samps))
         chunk_size = num_samples // num_chunks
@@ -107,16 +113,23 @@ class ChannelDisplay():
             top, length = self.scale_peak(peak)
             top += self.border_size
             reflected_length = 2 * length
-            self.screen.vline(top, x, curses.ACS_VLINE, reflected_length)
+            self.screen.vline(top, x, curses.ACS_CKBOARD, reflected_length)
 
-    def draw(self, offset, nsamples):
+    def draw(self, start, end):
+        """ Draw the given section of the wave
+            start: Starting point as proportion of total length, i.e. from 0. to 1.
+            end: Ending point as proportion of total length, i.e. from 0. to 1.
+        """
         # self.screen.clear()
         self.screen.box()
+        offset = int(self.wave.nsamples * start)
+        nsamples = int(self.wave.nsamples * (end-start))
         zoom = nsamples / self.draw_width
         self.screen.addstr("{} {} {}".format(offset, nsamples, zoom))
         if zoom < 100:
             self.draw_samples(offset, nsamples)
         else:
+            log(self.wave.nsamples, offset, nsamples, start, end)
             self.draw_peaks(offset, nsamples)
         # self.screen.refresh()
 
@@ -124,28 +137,30 @@ class ChannelDisplay():
 class App():
     def __init__(self):
         self.wave = Wave()
-        self.wave_offset = 0
-        self.wave_offset_delta = 10
-        # self.wave_gain = 1.
-        # self.wave_gain_delta = 0.1
-        self.zoom = 110.
-        self.zoom_delta = 1.1
+        self.wave_centroid = 0.5 # Point of the wave at the centre of the screen
+        self.wave_centroid_delta = 0.2 # Proportion of the displayed area to move
+        self.zoom = 1. # view the entire wave
+        self.zoom_delta_multipler = 0.2 # change in zoom value for each key press
         self.running = True
 
     def quit(self):
         self.running = False
-    
+
     def shift_left(self):
-        self.wave_offset += self.wave_offset_delta
+        current_range = 1. / self.zoom
+        self.wave_centroid += (current_range*self.wave_centroid_delta)
 
     def shift_right(self):
-        self.wave_offset -= self.wave_offset_delta
+        current_range = 1. / self.zoom
+        self.wave_centroid -= (current_range*self.wave_centroid_delta)
 
     def zoom_in(self):
-        self.zoom *= self.zoom_delta
+        coeff = 1+self.zoom_delta_multipler
+        self.zoom = clip(self.zoom * coeff, 1., float('inf'))
 
     def zoom_out(self):
-        self.zoom /= self.zoom_delta
+        coeff = 1-self.zoom_delta_multipler
+        self.zoom = clip(self.zoom * coeff , 1., float('inf'))
 
     def get_window_rect(self, screen, channel):
         "Calculate x, y, width, height for a given channel window"
@@ -178,8 +193,9 @@ class App():
         _, max_width = screen.getmaxyx()
         for channel, window in enumerate(self.get_channel_windows(screen)):
             window.set_wave(self.wave, channel)
-            nsamples = int(max_width * self.zoom)
-            window.draw(self.wave_offset, nsamples)
+            wave_start = self.wave_centroid - (1./(self.zoom*2))
+            wave_end   = self.wave_centroid + (1./(self.zoom*2))
+            window.draw(wave_start, wave_end)
         screen.refresh()
 
     def main(self, stdscr):
@@ -197,8 +213,6 @@ def get_argparser():
 if __name__ == '__main__':
     argparser = get_argparser()
     args = argparser.parse_args()
-
-    # peaks = w.get_peaks(None, None, 0, 100)
 
     app = App()
     app.wave.load_file(args.wavfile)
