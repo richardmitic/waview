@@ -5,6 +5,7 @@ import sys
 import time
 import argparse
 import itertools
+import logging
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.io import wavfile
@@ -12,12 +13,14 @@ from scipy.signal import resample
 
 INT16_MAX = int(2**15)-1
 
-with open("log.txt", "w") as f:
-    print("log starting", file=f)
+LOG = logging.getLogger("waview")
 
-def log(*args):
-    with open("log.txt", "a") as f:
-        print(*args, file=f)
+def log_call(func):
+    ret = None
+    def wrapper(*args, **kwargs):
+        LOG.debug("{0!r} {1} {2}".format(func, args, kwargs))
+        return func(*args, *kwargs)
+    return wrapper
 
 def clip(n, _min, _max):
     return min(max(n,_min), _max)
@@ -70,8 +73,8 @@ class Wave():
         chunks = np.array_split(samples_to_display, num_chunks)
         return chunks
 
+    @log_call
     def get_peaks(self, offset, num_samples, channel, num_peaks):
-        log("get_peaks {} {} {} {}".format(offset, num_samples, channel, num_peaks))
         return list(map(absmax, self.get_samples(offset, num_samples, channel, num_chunks=num_peaks)))
 
 
@@ -124,7 +127,7 @@ class ChannelDisplay():
             try:
                 self.screen.addch(y, x, symbol)
             except curses.error as e:
-                log("addch error: {} {} {} {} {}".format(y,x,symbol,self.draw_width,self.draw_height))
+                LOG.error("addch error {!r}: {} {} {} {} {}".format(e,y,x,symbol,self.draw_width,self.draw_height))
 
     def scale_peak(self, peak):
         half_height = self.draw_height / 2
@@ -132,15 +135,14 @@ class ChannelDisplay():
         top = int(half_height-length)
         return top, length
 
+    @log_call
     def draw_peaks(self, offset, nsamples):
         # Make sure we don't try to draw outside the drawing area
         peaks = self.wave.get_peaks(offset, nsamples, self.channel, self.draw_width)
-        log("draw_peaks {} {} {}".format(offset, nsamples, self.channel))
         for x, peak in enumerate(peaks, self.border_size):
             top, length = self.scale_peak(peak)
             top += self.border_size
             reflected_length = 2 * length
-            # log("peaks {top} {x} {reflected_length}".format(**locals()))
             self.screen.vline(top, x, curses.ACS_CKBOARD, reflected_length)
 
     def draw(self, start, end):
@@ -174,22 +176,22 @@ class App():
     def shift_left(self):
         current_range = 1. / self.zoom
         self.wave_centroid += (current_range*self.wave_centroid_delta)
-        log("shift left", self.wave_centroid)
+        LOG.info("shift left {}".format(self.wave_centroid))
 
     def shift_right(self):
         current_range = 1. / self.zoom
         self.wave_centroid -= (current_range*self.wave_centroid_delta)
-        log("shift right", self.wave_centroid)
+        LOG.info("shift right {}".format(self.wave_centroid))
 
     def zoom_in(self):
         coeff = 1+self.zoom_delta_multipler
         self.zoom = clip(self.zoom * coeff, 1., float('inf'))
-        log("zoom in", self.zoom)
+        LOG.info("zoom in {}".format(self.zoom))
 
     def zoom_out(self):
         coeff = 1-self.zoom_delta_multipler
         self.zoom = clip(self.zoom * coeff , 1., float('inf'))
-        log("zoom out", self.zoom)
+        LOG.info("zoom out {}".format(self.zoom))
 
     def get_window_rect(self, screen, channel):
         "Calculate x, y, width, height for a given channel window"
@@ -224,7 +226,6 @@ class App():
             window.set_wave(self.wave, channel)
             wave_start = self.wave_centroid - (1./(self.zoom*2))
             wave_end   = self.wave_centroid + (1./(self.zoom*2))
-            # log(wave_start, wave_end)
             window.draw(wave_start, wave_end)
         screen.refresh()
 
@@ -239,11 +240,19 @@ def get_argparser():
     p = argparse.ArgumentParser()
     p.add_argument("-w", "--wavfile", help="WAV file to display")
     p.add_argument("-z", "--zoom", help="Initial zoom value", default=1, type=float)
+    p.add_argument("-v", help="Log verbosity", action="count", default=0)
     return p
+
+def get_log_format():
+    return "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 if __name__ == '__main__':
     argparser = get_argparser()
     args = argparser.parse_args()
+
+    log_format = get_log_format()
+    log_level = logging.ERROR - (args.v * 10) # default=error, -v=warn, -vv=info, -vvv=debug
+    logging.basicConfig(level=log_level, format=log_format, filename='waview.log')
 
     app = App(zoom=args.zoom)
     app.wave.load_file(args.wavfile)
