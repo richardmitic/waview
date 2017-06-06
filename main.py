@@ -23,7 +23,7 @@ def clip(n, _min, _max):
     return min(max(n,_min), _max)
 
 def absmax(arr):
-    return max(np.abs(arr))
+    return max(np.abs(arr)) if len(arr) > 0 else 0 # be careful for zero-length arrays
 
 
 
@@ -59,15 +59,19 @@ class Wave():
         samps = self.samples[channel]
         num_samples = len(samps)-offset if num_samples is None else num_samples
 
-        start = clip(offset, 0, len(samps))
-        chunk_size = num_samples // num_chunks
-        num_samples_whole_chunks = num_chunks * chunk_size
-        stop = clip(start+num_samples_whole_chunks, 0, len(samps))
+        # Pad samples with zeros if we go outside the range of the wave
+        pre_padding = np.zeros(-offset if offset < 0 else 0)
+        stop = offset + num_samples
+        post_padding = np.zeros(stop-len(samps) if stop >= len(samps) else 0)
 
-        chunks = np.reshape(samps[start:stop], (num_chunks, chunk_size))
+        start = clip(offset, 0, len(samps))
+        stop = clip(stop, 0, len(samps))
+        samples_to_display = np.concatenate((pre_padding, samps[start:stop], post_padding))
+        chunks = np.array_split(samples_to_display, num_chunks)
         return chunks
 
     def get_peaks(self, offset, num_samples, channel, num_peaks):
+        log("get_peaks {} {} {} {}".format(offset, num_samples, channel, num_peaks))
         return list(map(absmax, self.get_samples(offset, num_samples, channel, num_chunks=num_peaks)))
 
 
@@ -82,6 +86,7 @@ class ChannelDisplay():
         # The free space we have available for drawing, i.e. inside the borders
         self.draw_width = self.width - (2 * self.border_size)
         self.draw_height = self.height - (2 * self.border_size)
+        self.peaks_threshold = 50 # choose whether to display peaks or waveform
 
     def set_wave(self, wave, channel):
         "Wave object to draw. A window can only draw 1 channel."
@@ -92,13 +97,34 @@ class ChannelDisplay():
         half_height = self.draw_height / 2
         return int(((samp/INT16_MAX) * half_height) + half_height)
 
+    # @staticmethod
+    # def gradient_to_symbol(gradient):
+    #     if gradient == 0:
+    #         return curses.ACS_S1
+    #     elif gradient == 1:
+    #         return '\\'
+    #     elif gradient == -1:
+    #         return '/'
+    #     elif (gradient >= 2) or (gradient <= -2):
+    #         return curses.ACS_VLINE
+    #     else:
+    #         raise Exception("This should never happen")
+
     def draw_samples(self, offset, nsamples):
         # Make sure we don't try to draw outside the drawing area
         samples = self.wave.get_samples(offset, nsamples, self.channel)[0] # get_samples returns a list of chunks
-        samples = resample(samples, self.draw_width)
-        points = (self.scale_sample(s) + self.border_size for s in samples)
-        for x, y in enumerate(points, self.border_size):
-            self.screen.addch(y, x, "*")
+        samples = resample(samples, self.draw_width+1) # we don't actually draw the last point
+        points = [self.scale_sample(s) + self.border_size for s in samples]
+        for i in range(len(points)-1):
+            x = i + self.border_size
+            y = points[i]
+            # gradient = points[i+1] - points[i]
+            # symbol = self.gradient_to_symbol(gradient)
+            symbol = curses.ACS_DEGREE
+            try:
+                self.screen.addch(y, x, symbol)
+            except curses.error as e:
+                log("addch error: {} {} {} {} {}".format(y,x,symbol,self.draw_width,self.draw_height))
 
     def scale_peak(self, peak):
         half_height = self.draw_height / 2
@@ -109,10 +135,12 @@ class ChannelDisplay():
     def draw_peaks(self, offset, nsamples):
         # Make sure we don't try to draw outside the drawing area
         peaks = self.wave.get_peaks(offset, nsamples, self.channel, self.draw_width)
+        log("draw_peaks {} {} {}".format(offset, nsamples, self.channel))
         for x, peak in enumerate(peaks, self.border_size):
             top, length = self.scale_peak(peak)
             top += self.border_size
             reflected_length = 2 * length
+            # log("peaks {top} {x} {reflected_length}".format(**locals()))
             self.screen.vline(top, x, curses.ACS_CKBOARD, reflected_length)
 
     def draw(self, start, end):
@@ -123,20 +151,20 @@ class ChannelDisplay():
         self.screen.box()
         offset = int(self.wave.nsamples * start)
         nsamples = int(self.wave.nsamples * (end-start))
-        zoom = nsamples / self.draw_width
-        self.screen.addstr("{} {} {}".format(offset, nsamples, zoom))
-        if zoom < 100:
+        samples_per_column = nsamples / self.draw_width
+        self.screen.addstr("samples[{0}:{1}] {2:.4} {3:.4}:{4:.4}:{5:.4}".format(offset, nsamples, samples_per_column, start, end, end-start))
+        if samples_per_column < self.peaks_threshold:
             self.draw_samples(offset, nsamples)
         else:
             self.draw_peaks(offset, nsamples)
 
 
 class App():
-    def __init__(self):
+    def __init__(self, zoom=1.):
         self.wave = Wave()
         self.wave_centroid = 0.5 # Point of the wave at the centre of the screen
         self.wave_centroid_delta = 0.2 # Proportion of the displayed area to move
-        self.zoom = 1. # view the entire wave
+        self.zoom = zoom # 1. means entire wave
         self.zoom_delta_multipler = 0.2 # change in zoom value for each key press
         self.running = True
 
@@ -146,18 +174,22 @@ class App():
     def shift_left(self):
         current_range = 1. / self.zoom
         self.wave_centroid += (current_range*self.wave_centroid_delta)
+        log("shift left", self.wave_centroid)
 
     def shift_right(self):
         current_range = 1. / self.zoom
         self.wave_centroid -= (current_range*self.wave_centroid_delta)
+        log("shift right", self.wave_centroid)
 
     def zoom_in(self):
         coeff = 1+self.zoom_delta_multipler
         self.zoom = clip(self.zoom * coeff, 1., float('inf'))
+        log("zoom in", self.zoom)
 
     def zoom_out(self):
         coeff = 1-self.zoom_delta_multipler
         self.zoom = clip(self.zoom * coeff , 1., float('inf'))
+        log("zoom out", self.zoom)
 
     def get_window_rect(self, screen, channel):
         "Calculate x, y, width, height for a given channel window"
@@ -192,6 +224,7 @@ class App():
             window.set_wave(self.wave, channel)
             wave_start = self.wave_centroid - (1./(self.zoom*2))
             wave_end   = self.wave_centroid + (1./(self.zoom*2))
+            # log(wave_start, wave_end)
             window.draw(wave_start, wave_end)
         screen.refresh()
 
@@ -205,13 +238,14 @@ class App():
 def get_argparser():
     p = argparse.ArgumentParser()
     p.add_argument("-w", "--wavfile", help="WAV file to display")
+    p.add_argument("-z", "--zoom", help="Initial zoom value", default=1, type=float)
     return p
 
 if __name__ == '__main__':
     argparser = get_argparser()
     args = argparser.parse_args()
 
-    app = App()
+    app = App(zoom=args.zoom)
     app.wave.load_file(args.wavfile)
-    
+
     curses.wrapper(app.main)
