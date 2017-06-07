@@ -15,6 +15,10 @@ INT16_MAX = int(2**15)-1
 
 LOG = logging.getLogger("waview")
 
+SAMPLE_FORMATS = {
+    "S16_LE": np.int16
+}
+
 def log_call(func):
     ret = None
     def wrapper(*args, **kwargs):
@@ -48,8 +52,24 @@ class Wave():
         "Convert frame-based samples to channel-based"
         return np.transpose(samples)
 
-    def load_file(self, filename):
-        "Load a WAV file"
+    def load_file(self, filename, sample_format=None, channels=1):
+        if sample_format:
+            self.load_pcm_file(filename, sample_format, channels)
+        else:
+            self.load_wav_file(filename)
+
+    def load_pcm_file(self, filename, sample_format, channels):
+        self.nchannels = channels
+        with open(filename, "rb") as pcm:
+            np_format = SAMPLE_FORMATS[sample_format]
+            self.samples = np.frombuffer(pcm.read(), dtype=np_format)
+        if channels == 1:
+            self.samples = np.array([self.samples])
+        else:
+            num_frames = len(self.samples) / channels
+            self.samples = np.transpose(np.split(self.samples, num_frames))
+
+    def load_wav_file(self, filename):
         self.sr, self.samples = wavfile.read(filename)
         if isinstance(self.samples[0], np.ndarray):
             self.nchannels = len(self.samples[0])
@@ -238,7 +258,10 @@ class App():
 
 def get_argparser():
     p = argparse.ArgumentParser()
-    p.add_argument("-w", "--wavfile", help="WAV file to display")
+    p.add_argument("-w", "--wavfile", help="WAV File to display")
+    p.add_argument("-p", "--pcmfile", help="Raw file to display")
+    p.add_argument("-f", "--format", help="Sample format for raw files", choices=SAMPLE_FORMATS.keys(), default="S16_LE")
+    p.add_argument("-c", "--channels", help="Number of channels for raw files", default=1, type=int)
     p.add_argument("-z", "--zoom", help="Initial zoom value", default=1, type=float)
     p.add_argument("-v", help="Log verbosity", action="count", default=0)
     return p
@@ -254,7 +277,17 @@ if __name__ == '__main__':
     log_level = logging.ERROR - (args.v * 10) # default=error, -v=warn, -vv=info, -vvv=debug
     logging.basicConfig(level=log_level, format=log_format, filename='waview.log')
 
+    if not (args.wavfile or args.pcmfile):
+        argparser.error("No input file specified")
+
     app = App(zoom=args.zoom)
-    app.wave.load_file(args.wavfile)
+
+    if args.wavfile:
+        app.wave.load_file(args.wavfile)
+    elif args.pcmfile:
+        app.wave.load_file(args.pcmfile, sample_format=args.format, channels=args.channels)
+    else:
+        LOG.fatal("No input file. We shouldn't have got this far.")
+        sys.exit(1)
 
     curses.wrapper(app.main)
