@@ -162,8 +162,12 @@ class ChannelDisplay():
         for x, peak in enumerate(peaks, self.border_size):
             top, length = self.scale_peak(peak)
             top += self.border_size
-            reflected_length = 2 * length
-            self.screen.vline(top, x, curses.ACS_CKBOARD, reflected_length)
+            if length == 0:
+                self.screen.addch(top, x, curses.ACS_S1)
+                self.screen.addch(top-1, x, curses.ACS_S9)
+            else:
+                reflected_length = 2 * length
+                self.screen.vline(top, x, curses.ACS_CKBOARD, reflected_length)
 
     def draw(self, start, end):
         """ Draw the given section of the wave
