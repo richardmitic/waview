@@ -269,6 +269,9 @@ class App():
         while self.running:
             self.handle_key_press(stdscr.getkey())
             self.draw(stdscr)
+    
+    def __call__(self, stdscr):
+        self.main(stdscr)
 
 
 def get_argparser():
@@ -296,4 +299,4 @@ if __name__ == '__main__':
     app = App(zoom=args.zoom)
     app.load(args.inputfile, args.format, args.channels)
 
-    curses.wrapper(app.main)
+    curses.wrapper(app)
