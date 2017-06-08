@@ -216,6 +216,10 @@ class App():
         self.zoom = clip(self.zoom * coeff , 1., float('inf'))
         LOG.info("zoom out {}".format(self.zoom))
 
+    def reset_view(self):
+        self.zoom = 1.
+        self.wave_centroid = 0.5
+
     def get_window_rect(self, screen, channel):
         "Calculate x, y, width, height for a given channel window"
         total_h, total_w = screen.getmaxyx()
@@ -232,6 +236,8 @@ class App():
     def handle_key_press(self, key):
         if key == "q":
             self.quit()
+        if key == "r":
+            self.reset_view()
         elif key == "KEY_LEFT":
             self.shift_left()
         elif key == "KEY_RIGHT":
