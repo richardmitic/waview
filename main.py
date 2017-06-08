@@ -2,10 +2,9 @@
 
 import curses
 import sys
-import time
 import argparse
-import itertools
 import logging
+import wave
 import numpy as np
 from scipy.io import wavfile
 from scipy.signal import resample
@@ -247,6 +246,13 @@ class App():
         elif key == "KEY_DOWN":
             self.zoom_out()
 
+    def load(self, filename, sample_format, channels):
+        "Load a file by automatically detecting the type"
+        try:
+            self.wave.load_wav_file(filename)
+        except ValueError:
+            self.wave.load_pcm_file(filename, sample_format, channels)
+
     def draw(self, screen):
         screen.clear()
         screen.border()
@@ -267,8 +273,7 @@ class App():
 
 def get_argparser():
     p = argparse.ArgumentParser()
-    p.add_argument("-w", "--wavfile", help="WAV File to display")
-    p.add_argument("-p", "--pcmfile", help="Raw file to display")
+    p.add_argument("inputfile", help="File to display. The format will be determined automatically.")
     p.add_argument("-f", "--format", help="Sample format for raw files", choices=SAMPLE_FORMATS.keys(), default="S16_LE")
     p.add_argument("-c", "--channels", help="Number of channels for raw files", default=1, type=int)
     p.add_argument("-z", "--zoom", help="Initial zoom value", default=1, type=float)
@@ -278,25 +283,17 @@ def get_argparser():
 def get_log_format():
     return "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
+def setup_logging(verbosity):
+    log_format = get_log_format()
+    log_level = logging.ERROR - (verbosity * 10) # default=error, -v=warn, -vv=info, -vvv=debug
+    logging.basicConfig(level=log_level, format=log_format, filename='waview.log')
+
 if __name__ == '__main__':
     argparser = get_argparser()
     args = argparser.parse_args()
-
-    log_format = get_log_format()
-    log_level = logging.ERROR - (args.v * 10) # default=error, -v=warn, -vv=info, -vvv=debug
-    logging.basicConfig(level=log_level, format=log_format, filename='waview.log')
-
-    if not (args.wavfile or args.pcmfile):
-        argparser.error("No input file specified")
+    setup_logging(args.v)
 
     app = App(zoom=args.zoom)
-
-    if args.wavfile:
-        app.wave.load_file(args.wavfile)
-    elif args.pcmfile:
-        app.wave.load_file(args.pcmfile, sample_format=args.format, channels=args.channels)
-    else:
-        LOG.fatal("No input file. We shouldn't have got this far.")
-        sys.exit(1)
+    app.load(args.inputfile, args.format, args.channels)
 
     curses.wrapper(app.main)
