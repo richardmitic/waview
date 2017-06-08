@@ -35,7 +35,6 @@ def absmax(arr):
 class Wave():
     def __init__(self):
         self.samples = np.empty((1,0)) # 1 channel, 0 samples
-        self.sr = None
         self.nchannels = 1
 
     def nsamples():
@@ -68,7 +67,7 @@ class Wave():
             self.samples = np.transpose(np.split(self.samples, num_frames))
 
     def load_wav_file(self, filename):
-        self.sr, self.samples = wavfile.read(filename)
+        _, self.samples = wavfile.read(filename)
         if isinstance(self.samples[0], np.ndarray):
             self.nchannels = len(self.samples[0])
             self.samples = self.frames_to_channels(self.samples)
