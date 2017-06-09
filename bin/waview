@@ -1,0 +1,4 @@
+#!/usr/bin/env python3
+
+from waview import waview
+waview.main()

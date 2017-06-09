@@ -21,7 +21,7 @@ def log_call(func):
     ret = None
     def wrapper(*args, **kwargs):
         LOG.debug("{0!r} {1} {2}".format(func, args, kwargs))
-        return func(*args, *kwargs)
+        return func(*args, **kwargs)
     return wrapper
 
 def clip(n, _min, _max):
@@ -304,12 +304,13 @@ def setup_logging(verbosity):
     sys.stdout = LoggerWriter(LOG.debug)
     sys.stderr = LoggerWriter(LOG.warning)
 
-if __name__ == '__main__':
+def main():
     argparser = get_argparser()
     args = argparser.parse_args()
     setup_logging(args.v)
-
     app = App(zoom=args.zoom)
     app.load(args.inputfile, args.format, args.channels)
-
     curses.wrapper(app)
+
+if __name__ == '__main__':
+    main()
