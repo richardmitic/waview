@@ -273,6 +273,18 @@ class App():
         self.main(stdscr)
 
 
+class LoggerWriter:
+    def __init__(self, level):
+        self.level = level
+
+    def write(self, message):
+        msg = message.strip()
+        if msg != "\n":
+            self.level(msg)
+
+    def flush(self):
+        pass
+
 def get_argparser():
     p = argparse.ArgumentParser()
     p.add_argument("inputfile", help="File to display. The format will be determined automatically.")
@@ -289,6 +301,8 @@ def setup_logging(verbosity):
     log_format = get_log_format()
     log_level = logging.ERROR - (verbosity * 10) # default=error, -v=warn, -vv=info, -vvv=debug
     logging.basicConfig(level=log_level, format=log_format, filename='waview.log')
+    sys.stdout = LoggerWriter(LOG.debug)
+    sys.stderr = LoggerWriter(LOG.warning)
 
 if __name__ == '__main__':
     argparser = get_argparser()
