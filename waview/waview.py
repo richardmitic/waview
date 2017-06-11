@@ -273,7 +273,9 @@ class App():
         self.main(stdscr)
 
 
-class LoggerWriter:
+class LoggerWriter(object):
+    """ Python logger that looks and acts like a file.
+    """
     def __init__(self, level):
         self.level = level
 
