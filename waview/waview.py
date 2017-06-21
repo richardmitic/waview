@@ -106,7 +106,6 @@ class ChannelDisplay():
         # The free space we have available for drawing, i.e. inside the borders
         self.draw_width = self.width - (2 * self.border_size)
         self.draw_height = self.height - (2 * self.border_size)
-        self.peaks_threshold = 50 # choose whether to display peaks or waveform
 
     def set_wave(self, wave, channel):
         "Wave object to draw. A window can only draw 1 channel."
@@ -116,6 +115,19 @@ class ChannelDisplay():
     def scale_sample(self, samp):
         half_height = self.draw_height / 2
         return int(((samp/INT16_MAX) * half_height) + half_height)
+
+    @staticmethod
+    def zero_crossings(arr):
+        return len(np.where(np.diff(np.sign(arr)))[0])
+
+    def should_draw_peaks(self, offset, nsamples):
+        """ Decide whether to draw individual samples or peaks based on the number
+            of zero crossings in the references section. Avoid aliasing by only
+            drawing if there are roughly 4 draw columns per zero crossing.
+        """
+        samples = self.wave.get_samples(offset, nsamples, self.channel)[0]
+        zero_crossings_per_column = self.zero_crossings(samples) / self.draw_width
+        return zero_crossings_per_column < 0.25, zero_crossings_per_column
 
     # @staticmethod
     # def gradient_to_symbol(gradient):
@@ -174,9 +186,14 @@ class ChannelDisplay():
         self.screen.box()
         offset = int(self.wave.nsamples * start)
         nsamples = int(self.wave.nsamples * (end-start))
-        samples_per_column = nsamples / self.draw_width
-        self.screen.addstr("samples[{0}:{1}] {2:.4} {3:.4}:{4:.4}:{5:.4}".format(offset, nsamples, samples_per_column, start, end, end-start))
-        if samples_per_column < self.peaks_threshold:
+
+        _should_draw_peaks, zero_crossings_per_column = self.should_draw_peaks(offset, nsamples)
+
+        info = "samples[{0}:{1}] {2:.2} {3:.4}:{4:.4}:{5:.4}".format( \
+            offset, nsamples, zero_crossings_per_column, start, end, end-start)
+
+        self.screen.addstr(info)
+        if _should_draw_peaks:
             self.draw_samples(offset, nsamples)
         else:
             self.draw_peaks(offset, nsamples)
