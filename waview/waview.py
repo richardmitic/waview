@@ -322,7 +322,7 @@ def setup_logging(logfile, verbosity):
     log_level = logging.ERROR - (verbosity * 10) # default=error, -v=warn, -vv=info, -vvv=debug
     logging.basicConfig(level=log_level, format=log_format, filename=logfile)
     sys.stdout = LoggerWriter(LOG.debug)
-    sys.stderr = LoggerWriter(LOG.warning)
+    sys.stderr = LoggerWriter(LOG.error)
 
 def main():
     argparser = get_argparser()
