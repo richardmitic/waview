@@ -310,7 +310,7 @@ def get_argparser():
     p.add_argument("-f", "--format", help="Sample format for raw files", choices=SAMPLE_FORMATS.keys(), default="S16_LE")
     p.add_argument("-c", "--channels", help="Number of channels for raw files", default=1, type=int)
     p.add_argument("-z", "--zoom", help="Initial zoom value", default=1, type=float)
-    p.add_argument("-l", "--logfile", help="Log file path", default="waview.log")
+    p.add_argument("-l", "--logfile", help="Log file path")
     p.add_argument("-v", help="Log verbosity", action="count", default=0)
     return p
 
@@ -318,11 +318,12 @@ def get_log_format():
     return "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 def setup_logging(logfile, verbosity):
-    log_format = get_log_format()
-    log_level = logging.ERROR - (verbosity * 10) # default=error, -v=warn, -vv=info, -vvv=debug
-    logging.basicConfig(level=log_level, format=log_format, filename=logfile)
-    sys.stdout = LoggerWriter(LOG.debug)
-    sys.stderr = LoggerWriter(LOG.error)
+    if logfile:
+        log_format = get_log_format()
+        log_level = logging.ERROR - (verbosity * 10) # default=error, -v=warn, -vv=info, -vvv=debug
+        logging.basicConfig(level=log_level, format=log_format, filename=logfile)
+        sys.stdout = LoggerWriter(LOG.debug)
+        sys.stderr = LoggerWriter(LOG.error)
 
 def main():
     argparser = get_argparser()
