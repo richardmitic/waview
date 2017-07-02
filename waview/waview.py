@@ -73,7 +73,7 @@ class Wave():
             self.samples = self.frames_to_channels(self.samples)
         else:
             self.nchannels = 1
-            self.samples = np.array([self.samples]) # Se we can still index the only channel
+            self.samples = np.array([self.samples]) # So we can still index the only channel
 
     def get_samples(self, offset=0, num_samples=None, channel=0, num_chunks=1):
         samps = self.samples[channel]
