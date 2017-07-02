@@ -142,17 +142,22 @@ class ChannelDisplay():
     #     else:
     #         raise Exception("This should never happen")
 
+    def sample_to_point(self, sample, n):
+        x = n + self.border_size
+        y = self.scale_sample(sample) + self.border_size
+        return x,y
+
     def draw_samples(self, offset, nsamples):
         # Make sure we don't try to draw outside the drawing area
         samples = self.wave.get_samples(offset, nsamples, self.channel)[0] # get_samples returns a list of chunks
-        samples = resample(samples, self.draw_width+1) # we don't actually draw the last point
-        points = [self.scale_sample(s) + self.border_size for s in samples]
-        for i in range(len(points)-1):
-            x = i + self.border_size
-            y = points[i]
-            # gradient = points[i+1] - points[i]
-            # symbol = self.gradient_to_symbol(gradient)
-            symbol = curses.ACS_DEGREE
+        t = np.array(range(offset, offset+nsamples))
+        samples, re_t = resample(samples, self.draw_width+1, t=t) # we don't actually draw the last point
+        points = [self.sample_to_point(s, n) for n,s in enumerate(samples)]
+        t_diff = np.diff(re_t.astype(int)) # This will be 1 when we have an actual sample, 0 for interpolated samples.
+
+        for point, is_real_sample in zip(points, t_diff):
+            x,y = point
+            symbol = 'o' if nsamples < self.draw_width and is_real_sample else curses.ACS_BULLET
             try:
                 self.screen.addch(y, x, symbol)
             except curses.error as e:
