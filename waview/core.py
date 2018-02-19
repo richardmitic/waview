@@ -5,12 +5,17 @@ import wave
 import array
 import math
 import numpy as np
+from enum import Enum
 from scipy.io import wavfile
 from scipy.signal import resample, resample_poly
 
 LOG = logging.getLogger(__name__)
 
 INT16_MAX = int(2**15)-1
+
+class WavType(Enum):
+    SAMPLES=1
+    PEAKS=2
 
 def rms(arr):
     big_arr = np.array(arr, dtype=np.float32) / INT16_MAX
@@ -129,3 +134,17 @@ class WaviewCore():
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, perform, wav, start, end, num_samps)
 
+    async def get_wav(self, wav, start=0., end=1., num_points=None):
+        """ Get a view of <wav> with the given parameters, letting Waview choose
+            whether to give peaks or samples.
+        """
+        samples = self.load_samples(wav, start, end)
+        samples_per_point = samples.shape[1] / num_points if num_points else -1
+        print(samples.shape, samples_per_point)
+        if samples_per_point > 4:
+            data = await self.get_peaks(wav, start, end, num_points)
+            data_type = WavType.PEAKS
+        else:
+            data_type = WavType.SAMPLES
+            data = await self.get_samples(wav, start, end, num_points)
+        return data_type, data

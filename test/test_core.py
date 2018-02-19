@@ -1,4 +1,4 @@
-from waview.core import WaviewCore, INT16_MAX
+from waview.core import WaviewCore, INT16_MAX, WavType
 import asyncio
 import os
 import wave
@@ -24,11 +24,16 @@ def setup_module(module):
     write_test_wav_file_1()
     write_test_wav_file_2()
 
-class TestPeaks:
-
+class BaseTest:
     def setup(self):
         self.loop = asyncio.get_event_loop()
         self.core = WaviewCore()
+    
+    def test1_samples(self):
+        return np.expand_dims(np.repeat(np.arange(0, 10, dtype=np.int16), 1024), 0) / INT16_MAX
+
+
+class TestPeaks(BaseTest):
 
     def test_peak_values(self):
         task = self.core.get_peaks(resource("test1.wav"))
@@ -87,12 +92,8 @@ class TestPeaks:
         assert (result.shape == (1,i))
 
 
-class TestSamples:
+class TestSamples(BaseTest):
 
-    def setup(self):
-        self.loop = asyncio.get_event_loop()
-        self.core = WaviewCore()
-    
     def test_all_samples(self):
         task = self.core.get_samples(resource("test1.wav"))
         result = self.loop.run_until_complete(task)
@@ -124,3 +125,19 @@ class TestSamples:
         task = self.core.get_samples(resource("test1.wav"), start=start, end=end, num_samps=100)
         result = self.loop.run_until_complete(task)
         assert (result.shape == (1,100))
+
+
+class TestGetWav(BaseTest):
+    
+    def test_whole_file_no_specified_points(self):
+        task = self.core.get_wav(resource("test1.wav"), num_points=None)
+        point_type, points = self.loop.run_until_complete(task)
+        assert (point_type == WavType.SAMPLES)
+        assert (np.array_equiv(points, self.test1_samples()))
+
+    def test_whole_file_with_specified_points(self):
+        task = self.core.get_wav(resource("test1.wav"), num_points=10)
+        point_type, points = self.loop.run_until_complete(task)
+        expected_peaks = np.expand_dims(np.arange(10) / INT16_MAX, 0)
+        assert (point_type == WavType.PEAKS)
+        assert (np.array_equiv(points, expected_peaks))
