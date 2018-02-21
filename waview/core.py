@@ -49,7 +49,7 @@ class WaviewCache():
 class WaviewCore():
     """ The core processor of waview. Handles all audio processing and anaylsis.
     """
-    
+
     def __init__(self, on_event=_default_callback):
         self._on_event = on_event
         self._cache = None
@@ -97,10 +97,10 @@ class WaviewCore():
             """ Split into chunks and take the mean absolute value of each.
                 Drop incomplete chunk from the end if present.
             """
-            chunk_size = samples.shape[1] // num_peaks if num_peaks is not None else 1024
-            n_splits = num_peaks if num_peaks is not None else samples.shape[1] // chunk_size
-            last_index = (samples.shape[1] // chunk_size) * chunk_size
-            chunks = np.array(np.split(samples[:,:last_index], n_splits, axis=1))
+            num_peaks = num_peaks or samples.shape[1] // 1024
+            chunk_size = samples.shape[1] // num_peaks
+            last_index = chunk_size * num_peaks
+            chunks = np.array(np.split(samples[:,:last_index], num_peaks, axis=1))
             avg = np.sum(np.abs(chunks), axis=2) / chunk_size
             return avg
 
@@ -109,7 +109,7 @@ class WaviewCore():
             samples = self.load_samples(wav, start, end)
             p = peaks(samples, num_peaks).T
             return p
-    
+
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, perform, wav, start, end, num_peaks)
 
@@ -122,7 +122,7 @@ class WaviewCore():
                     waview will choose automatically.
             [return] Numpy array of samples
         """
-        
+
         def perform(wav, start, end, num_samps):
             "Fucntion is slow. Run in an async executor."
             samples = self.load_samples(wav, start, end)
@@ -130,7 +130,7 @@ class WaviewCore():
             # Otherwise just return the samples without alteration.
             s = resample_poly(samples, num_samps, samples.shape[1], axis=1) if num_samps is not None else samples
             return s
-    
+
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, perform, wav, start, end, num_samps)
 
@@ -140,7 +140,6 @@ class WaviewCore():
         """
         samples = self.load_samples(wav, start, end)
         samples_per_point = samples.shape[1] / num_points if num_points else -1
-        print(samples.shape, samples_per_point)
         if samples_per_point > 4:
             data = await self.get_peaks(wav, start, end, num_points)
             data_type = WavType.PEAKS

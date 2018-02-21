@@ -9,6 +9,8 @@ import numpy as np
 core = None
 loop = None
 
+INT16_ONE = 1 / INT16_MAX
+
 def resource(filename):
     return os.path.join(os.path.dirname(__file__), "..", "resources", filename)
 
@@ -24,11 +26,15 @@ def setup_module(module):
     write_test_wav_file_1()
     write_test_wav_file_2()
 
+def step(n):
+    "Symetric step function with <n> points"
+    return np.heaviside(np.linspace(-1, 1, num=n), 0)
+
 class BaseTest:
     def setup(self):
         self.loop = asyncio.get_event_loop()
         self.core = WaviewCore()
-    
+
     def test1_samples(self):
         return np.expand_dims(np.repeat(np.arange(0, 10, dtype=np.int16), 1024), 0) / INT16_MAX
 
@@ -46,45 +52,45 @@ class TestPeaks(BaseTest):
         result = self.loop.run_until_complete(task)
         expected_peaks = np.expand_dims(np.arange(10) / INT16_MAX, 0)
         assert (np.array_equiv(result, expected_peaks))
-    
+
     def test_peak_values_specific_num_peaks(self):
         task = self.core.get_peaks(resource("test1.wav"), num_peaks=20)
         result = self.loop.run_until_complete(task)
         expected_peaks = np.expand_dims(np.repeat(np.arange(10) / INT16_MAX, 2), 0)
         assert (np.array_equiv(result, expected_peaks))
-    
+
     def test_peak_values_part_file(self):
         task = self.core.get_peaks(resource("test1.wav"), start=0.2, end=0.5)
         result = self.loop.run_until_complete(task)
         expected_peaks = np.expand_dims(np.arange(2,5) / INT16_MAX, 0)
         assert (np.array_equiv(result, expected_peaks))
-    
+
     def test_peak_values_part_file_specific_num_peaks(self):
         task = self.core.get_peaks(resource("test1.wav"), start=0.2, end=0.5, num_peaks=6)
         result = self.loop.run_until_complete(task)
         expected_peaks = np.expand_dims(np.repeat(np.arange(2,5) / INT16_MAX, 2), 0)
         assert (np.array_equiv(result, expected_peaks))
-        
+
     def test_peak_values_negative_bounds(self):
         task = self.core.get_peaks(resource("test1.wav"), start=-0.5, end=0.5)
         result = self.loop.run_until_complete(task)
         expected_peaks = np.expand_dims(np.clip(np.arange(-5, 5) / INT16_MAX, 0., 1.), 0)
         assert (np.array_equiv(result, expected_peaks))
-    
+
     def test_peak_values_over_positive_bounds(self):
         task = self.core.get_peaks(resource("test1.wav"), start=0.5, end=1.5)
         result = self.loop.run_until_complete(task)
         expected_peaks = np.zeros((1,10))
         expected_peaks[0,0:5] = np.arange(5, 10) / INT16_MAX
         assert (np.array_equiv(result, expected_peaks))
-    
+
     def test_peak_values_negative_and_over_positive_bounds(self):
         task = self.core.get_peaks(resource("test1.wav"), start=-0.5, end=1.5)
         result = self.loop.run_until_complete(task)
         expected_peaks = np.zeros((1,20))
         expected_peaks[0,5:15] = np.arange(0, 10) / INT16_MAX
         assert (np.array_equiv(result, expected_peaks))
-    
+
     @pytest.mark.parametrize("i", range(1,20))
     def test_irregular_num_peaks(self, i):
         task = self.core.get_peaks(resource("test1.wav"), num_peaks=i)
@@ -99,7 +105,7 @@ class TestSamples(BaseTest):
         result = self.loop.run_until_complete(task)
         expected_samples = np.expand_dims(np.repeat(np.arange(0, 10, dtype=np.int16), 1024), 0) / INT16_MAX
         assert (np.array_equiv(result, expected_samples))
-    
+
     def test_partial_file(self):
         start = 1020 / 10240
         end = 1028 / 10240
@@ -107,18 +113,18 @@ class TestSamples(BaseTest):
         result = self.loop.run_until_complete(task)
         expected_samples = np.heaviside(np.linspace(-1, 1, num=8), 0) / INT16_MAX
         assert (np.array_equiv(result, expected_samples))
-    
+
     def test_all_samples_resampled(self):
         task = self.core.get_samples(resource("test1.wav"), num_samps=100)
         result = self.loop.run_until_complete(task)
         assert (result.shape == (1,100))
-    
+
     def test_partial_downsampled(self):
         end = 2048 / 10240
         task = self.core.get_samples(resource("test1.wav"), start=0, end=end, num_samps=100)
         result = self.loop.run_until_complete(task)
         assert (result.shape == (1,100))
-    
+
     def test_partial_upsampled(self):
         start = 1020 / 10240
         end = 1028 / 10240
@@ -128,7 +134,12 @@ class TestSamples(BaseTest):
 
 
 class TestGetWav(BaseTest):
-    
+
+    def _assertCloseEnough(self, arr, expected, thresh=INT16_ONE):
+        mse = ((arr - expected) ** 2).mean()
+        assert (arr.shape == expected.shape)
+        assert (mse <= thresh)
+
     def test_whole_file_no_specified_points(self):
         task = self.core.get_wav(resource("test1.wav"), num_points=None)
         point_type, points = self.loop.run_until_complete(task)
@@ -141,3 +152,40 @@ class TestGetWav(BaseTest):
         expected_peaks = np.expand_dims(np.arange(10) / INT16_MAX, 0)
         assert (point_type == WavType.PEAKS)
         assert (np.array_equiv(points, expected_peaks))
+
+    def test_small_section(self):
+        start = 1000 / 10240
+        end = 1048 / 10240
+        task = self.core.get_wav(resource("test1.wav"), start=start, end=end, num_points=48)
+        point_type, points = self.loop.run_until_complete(task)
+        expected_points = np.expand_dims(step(48), 0) / INT16_MAX
+        assert (point_type == WavType.SAMPLES)
+        assert (np.array_equiv(points, expected_points))
+
+    def test_small_section_downsampled(self):
+        start = 1000 / 10240
+        end = 1048 / 10240
+        task = self.core.get_wav(resource("test1.wav"), start=start, end=end, num_points=20)
+        point_type, points = self.loop.run_until_complete(task)
+        expected_points = np.expand_dims(step(20), 0) / INT16_MAX
+        assert (point_type == WavType.SAMPLES)
+        self._assertCloseEnough(points, expected_points)
+
+    def test_small_section_upsampled(self):
+        start = 1000 / 10240
+        end = 1048 / 10240
+        task = self.core.get_wav(resource("test1.wav"), start=start, end=end, num_points=100)
+        point_type, points = self.loop.run_until_complete(task)
+        expected_points = np.expand_dims(step(100), 0) / INT16_MAX
+        assert (point_type == WavType.SAMPLES)
+        self._assertCloseEnough(points, expected_points)
+
+    @pytest.mark.parametrize("i", range(5,200))
+    def test_num_points_no_crashes(self, i):
+        task = self.core.get_wav(resource("test1.wav"), num_points=i)
+        point_type, points = self.loop.run_until_complete(task)
+
+    @pytest.mark.parametrize("end", np.linspace(0.01, 1., num=100))
+    def test_range_no_crashes(self, end):
+        task = self.core.get_wav(resource("test1.wav"), start=0., end=end, num_points=100)
+        point_type, points = self.loop.run_until_complete(task)
