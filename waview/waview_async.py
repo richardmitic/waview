@@ -9,7 +9,7 @@ import traceback
 import os
 import numpy as np
 import scipy.signal
-from core import WaviewCore, LoggerWriter, INT16_MAX
+from core import WaviewCore, LoggerWriter, WavType, INT16_MAX
 
 LOG = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class ChannelDisplay():
         else:
             return scipy.signal.resample(peaks, drawable_width)
 
-    def __draw_peaks(self, peaks, y_scale=0.1):
+    def __draw_peaks(self, peaks, y_scale):
         "Draw peaks inside the box"
         h,w = self.win.getmaxyx()
         drawable_peaks = self.reshape_peaks_to_window_size(peaks, w-2)
@@ -76,12 +76,24 @@ class ChannelDisplay():
                 char = curses.ACS_HLINE if h % 2 == 1 else curses.ACS_S9
                 self.win.addch(y, x, char)
 
+    def __draw_samples(self, samples, y_scale):
+        h,w = self.win.getmaxyx()
+        free_h = h - 2
+        centre = int((free_h / 2) + 1)
+        for i, peak in enumerate(samples):
+            x = i+1
+            y = min(int(peak * free_h * -y_scale), free_h) + centre
+            self.win.addch(y, x, '*')
+
     def __draw_text(self, start, end, y_scale):
         self.win.addstr(0, 0, f"Channel {self.index} range:{start:.3}-{end:.3} scale:{y_scale:.3} ")
 
-    def draw(self, peaks, start=0., end=1., y_scale=0.1):
+    def draw(self, point_type, points, start=0., end=1., y_scale=0.1):
         self.win.border()
-        self.__draw_peaks(peaks, y_scale=y_scale)
+        if point_type == WavType.PEAKS:
+            self.__draw_peaks(points, y_scale)
+        elif point_type == WavType.SAMPLES:
+            self.__draw_samples(points, y_scale)
         self.__draw_text(start, end, y_scale)
 
 
@@ -94,13 +106,14 @@ class WaviewApp():
         self.width = 0
         self.msg_counter = 0
         self.popup_window = None
-        self.peaks = None
+        self.points = None
 
         # Drawing parameters
-        self.y_scale = 1.
+        self.y_scale = 1.0
         self.start = 0.0
         self.end = 1.0
         self.delta_shift = 0.1
+        self.delta_zoom = 0.1
 
     def quit(self):
         for task in asyncio.Task.all_tasks():
@@ -117,32 +130,44 @@ class WaviewApp():
     def channel_draw_width(self):
         return self.width - 2
 
+    async def refresh_points(self):
+        self.point_type, self.points = await self.core.get_wav(
+            self.wavfilepath, start=self.start, end=self.end,
+            num_points=self.channel_draw_width())
+
     async def shift_left(self):
-        self.start += self.delta_shift
+        shown = self.end - self.start
+        self.start += (self.delta_shift * shown)
         self.end += self.delta_shift
-        self.peaks = await self.core.get_peaks(self.wavfilepath,
-                                               start=self.start,
-                                               end=self.end,
-                                               num_peaks=self.channel_draw_width())
+        await self.refresh_points()
         self.redraw()
 
     async def shift_right(self):
-        self.start -= self.delta_shift
+        shown = self.end - self.start
+        self.start -= (self.delta_shift * shown)
         self.end -= self.delta_shift
-        self.peaks = await self.core.get_peaks(self.wavfilepath,
-                                               start=self.start,
-                                               end=self.end,
-                                               num_peaks=self.channel_draw_width())
+        await self.refresh_points()
+        self.redraw()
+
+    async def zoom_in(self):
+        shown = self.end - self.start
+        self.start += (shown * self.delta_zoom)
+        self.end -= (shown * self.delta_zoom)
+        await self.refresh_points()
+        self.redraw()
+
+    async def zoom_out(self):
+        shown = self.end - self.start
+        self.start -= (shown * self.delta_zoom)
+        self.end += (shown * self.delta_zoom)
+        await self.refresh_points()
         self.redraw()
 
     async def analyze(self, path):
         self.wavfilepath = path
         self.popup.set_text(f"Analyzing {os.path.basename(path)}")
         self.redraw()
-        self.peaks = await self.core.get_peaks(path,
-                                               start=self.start,
-                                               end=self.end,
-                                               num_peaks=self.channel_draw_width())
+        await self.refresh_points()
         self.popup.hide()
         self.redraw()
 
@@ -154,6 +179,7 @@ class WaviewApp():
             # path = "/Users/richard/Developer/waview/resources/a2002011001-e02.wav"
             # path = "/Users/richard/Developer/waview/resources/4-channels.wav"
             path = "/Users/richard/Developer/waview/resources/395192__killyourpepe__duskwolf.wav"
+            # path = "/Users/richard/Developer/waview/resources/test1.wav"
             asyncio.ensure_future(self.analyze(path))
         elif key == ord('p'):
             self.toggle_popup()
@@ -161,6 +187,10 @@ class WaviewApp():
             asyncio.ensure_future(self.shift_left())
         elif key == curses.KEY_RIGHT:
             asyncio.ensure_future(self.shift_right())
+        elif key == curses.KEY_UP:
+            asyncio.ensure_future(self.zoom_in())
+        elif key == curses.KEY_DOWN:
+            asyncio.ensure_future(self.zoom_out())
 
     def toggle_popup(self):
         self.popup.toggle_visible()
@@ -180,21 +210,27 @@ class WaviewApp():
         return channels
 
     def draw_peaks(self):
-        num_channels = self.peaks.shape[0]
-        LOG.debug(f"{self.peaks.shape}")
+        num_channels = self.points.shape[0]
         channels = self.make_channels(self.screen, num_channels)
+        for peaks, channel in zip(self.points, channels):
+            channel.draw(WavType.PEAKS, peaks, start=self.start, end=self.end, y_scale=self.y_scale)
 
-        for peaks, channel in zip(self.peaks, channels):
-            LOG.debug(f"{channel} {peaks.shape}")
-            channel.draw(peaks, start=self.start, end=self.end, y_scale=self.y_scale)
+    def draw_samples(self):
+        num_channels = self.points.shape[0]
+        channels = self.make_channels(self.screen, num_channels)
+        for samples, channel in zip(self.points, channels):
+            channel.draw(WavType.SAMPLES, samples, start=self.start, end=self.end, y_scale=self.y_scale)
 
     def draw(self):
         LOG.debug("draw")
         self.height, self.width = self.screen.getmaxyx()
         self.screen.clear()
         # self.screen.border()
-        if self.peaks is not None:
-            self.draw_peaks()
+        if self.points is not None:
+            if self.point_type == WavType.PEAKS:
+                self.draw_peaks()
+            elif self.point_type == WavType.SAMPLES:
+                self.draw_samples()
         self.popup.draw()
         curses.panel.update_panels()
         self.screen.refresh()
