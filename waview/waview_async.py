@@ -22,18 +22,18 @@ class PopupWindow():
         self.outer_win.box()
         self.panel = curses.panel.new_panel(self.outer_win)
         self.set_text("", show=False)
-    
+
     def draw(self):
         LOG.debug("draw popup")
         self.inner_win.erase()
         self.inner_win.addstr(self.text)
-    
+
     def set_text(self, text, show=True):
         LOG.debug(f"Setting popup text to {text}")
         self.text = text
         if show:
             self.show()
-    
+
     def show(self):
         self.panel.show()
 
@@ -51,14 +51,14 @@ class ChannelDisplay():
     def __init__(self, win, index):
         self.win = win
         self.index = index
-    
+
     @staticmethod
     def reshape_peaks_to_window_size(peaks, drawable_width):
         if peaks.shape[0] == drawable_width:
             return peaks
         else:
             return scipy.signal.resample(peaks, drawable_width)
-    
+
     def __draw_peaks(self, peaks, y_scale=0.1):
         "Draw peaks inside the box"
         h,w = self.win.getmaxyx()
@@ -75,10 +75,10 @@ class ChannelDisplay():
                 y = start_pos if h % 2 == 1 else start_pos - 1
                 char = curses.ACS_HLINE if h % 2 == 1 else curses.ACS_S9
                 self.win.addch(y, x, char)
-    
+
     def __draw_text(self, start, end, y_scale):
         self.win.addstr(0, 0, f"Channel {self.index} range:{start:.3}-{end:.3} scale:{y_scale:.3} ")
-    
+
     def draw(self, peaks, start=0., end=1., y_scale=0.1):
         self.win.border()
         self.__draw_peaks(peaks, y_scale=y_scale)
@@ -95,7 +95,7 @@ class WaviewApp():
         self.msg_counter = 0
         self.popup_window = None
         self.peaks = None
-        
+
         # Drawing parameters
         self.y_scale = 1.
         self.start = 0.0
@@ -139,7 +139,7 @@ class WaviewApp():
         self.wavfilepath = path
         self.popup.set_text(f"Analyzing {os.path.basename(path)}")
         self.redraw()
-        self.peaks = await self.core.get_peaks(path, 
+        self.peaks = await self.core.get_peaks(path,
                                                start=self.start,
                                                end=self.end,
                                                num_peaks=self.channel_draw_width())
@@ -183,7 +183,7 @@ class WaviewApp():
         num_channels = self.peaks.shape[0]
         LOG.debug(f"{self.peaks.shape}")
         channels = self.make_channels(self.screen, num_channels)
-        
+
         for peaks, channel in zip(self.peaks, channels):
             LOG.debug(f"{channel} {peaks.shape}")
             channel.draw(peaks, start=self.start, end=self.end, y_scale=self.y_scale)
@@ -213,18 +213,18 @@ class WaviewApp():
         self.screen.timeout(0)
         self.height, self.width = screen.getmaxyx()
         self.set_text(f"{self.width}x{self.height}")
-        
+
         self.make_popup()
         self.popup.panel.top()
         self.redraw()
-        
+
         while self.running:
             await asyncio.sleep(0)
-            
+
             key = screen.getch()
             if (key > -1):
                 self.handle_key_press(key)
-            
+
             if self.update:
                 self.draw()
                 self.update = False
@@ -235,7 +235,7 @@ class WaviewApp():
         The callable object 'func' is then passed the main window 'stdscr'
         as its first argument, followed by any other arguments passed to
         wrapper().
-        
+
         Async version of the normal curses.wrapper(), which is blocking.
         see https://github.com/python/cpython/blob/3.6/Lib/curses/__init__.py
         """
@@ -283,16 +283,16 @@ class WaviewApp():
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG, 
-                        filename="./waview.log", 
-                        format='%(asctime)s.%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s', 
+    logging.basicConfig(level=logging.DEBUG,
+                        filename="./waview.log",
+                        format='%(asctime)s.%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                         datefmt='%Y%m%d-%H%M%S')
     sys.stdout = LoggerWriter(LOG.debug)
     sys.stderr = LoggerWriter(LOG.error)
-    
+
     loop = asyncio.get_event_loop()
     app = WaviewApp()
-    
+
     try:
         tasks = asyncio.gather(
             app.async_wrapper()
