@@ -22,9 +22,19 @@ def write_test_wav_file_2():
     wav = np.repeat(np.arange(0, -10, -1, dtype=np.int16), 1024)
     wavfile.write(resource("test2.wav"), 8000, wav)
 
+def write_test_wav_file_3():
+    # step = INT16_MAX/10
+    # left = np.repeat(np.arange(0, INT16_MAX, step, dtype=np.int16), 1024)
+    # right = np.repeat(np.arange(0, -INT16_MAX, -step, dtype=np.int16), 1024)
+    left = np.repeat(np.arange(0, 10, 1, dtype=np.int16), 1024)
+    right = np.repeat(np.arange(0, -10, -1, dtype=np.int16), 1024)
+    wav = np.array([left, right]).T
+    wavfile.write(resource("test3.wav"), 8000, wav)
+
 def setup_module(module):
     write_test_wav_file_1()
     write_test_wav_file_2()
+    write_test_wav_file_3()
 
 def step(n):
     "Symetric step function with <n> points"
@@ -97,6 +107,12 @@ class TestPeaks(BaseTest):
         result = self.loop.run_until_complete(task)
         assert (result.shape == (1,i))
 
+    def test_stereo(self):
+        task = self.core.get_peaks(resource("test3.wav"), num_peaks=10)
+        result = self.loop.run_until_complete(task)
+        expected_peaks = np.tile(np.arange(10) / INT16_MAX, (2,1))
+        assert (np.array_equiv(result, expected_peaks))
+
 
 class TestSamples(BaseTest):
 
@@ -131,6 +147,16 @@ class TestSamples(BaseTest):
         task = self.core.get_samples(resource("test1.wav"), start=start, end=end, num_samps=100)
         result = self.loop.run_until_complete(task)
         assert (result.shape == (1,100))
+
+    def test_stereo(self):
+        start = 1020 / 10240
+        end = 1028 / 10240
+        task = self.core.get_samples(resource("test3.wav"), start=start, end=end)
+        result = self.loop.run_until_complete(task)
+        expected_left = np.heaviside(np.linspace(-1, 1, num=8), 0) / INT16_MAX
+        expected_right = expected_left * -1
+        expected = np.array([expected_left, expected_right])
+        assert (np.array_equiv(result, expected))
 
 
 class TestGetWav(BaseTest):
