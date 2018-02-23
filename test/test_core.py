@@ -1,7 +1,9 @@
 from waview.core import WaviewCore, INT16_MAX, WavType
+from waview.waview_async import WaviewApp
 import asyncio
 import os
 import wave
+import math
 import pytest
 from scipy.io import wavfile
 import numpy as np
@@ -23,9 +25,6 @@ def write_test_wav_file_2():
     wavfile.write(resource("test2.wav"), 8000, wav)
 
 def write_test_wav_file_3():
-    # step = INT16_MAX/10
-    # left = np.repeat(np.arange(0, INT16_MAX, step, dtype=np.int16), 1024)
-    # right = np.repeat(np.arange(0, -INT16_MAX, -step, dtype=np.int16), 1024)
     left = np.repeat(np.arange(0, 10, 1, dtype=np.int16), 1024)
     right = np.repeat(np.arange(0, -10, -1, dtype=np.int16), 1024)
     wav = np.array([left, right]).T
@@ -215,3 +214,60 @@ class TestGetWav(BaseTest):
     def test_range_no_crashes(self, end):
         task = self.core.get_wav(resource("test1.wav"), start=0., end=end, num_points=100)
         point_type, points = self.loop.run_until_complete(task)
+
+
+class TestWaview:
+
+    def setup(self):
+        self.loop = asyncio.get_event_loop()
+        self.app = WaviewApp()
+
+    def test_shift_left_full(self):
+        self.loop.run_until_complete(self.app.shift_left())
+        expected_start = 0 - self.app.delta_shift
+        expected_end = 1 - self.app.delta_shift
+        assert (math.isclose(self.app.start, expected_start))
+        assert (math.isclose(self.app.end, expected_end))
+
+    def test_shift_right_full(self):
+        self.loop.run_until_complete(self.app.shift_right())
+        expected_start = 0 + self.app.delta_shift
+        expected_end = 1 + self.app.delta_shift
+        assert (math.isclose(self.app.start, expected_start))
+        assert (math.isclose(self.app.end, expected_end))
+
+    def test_shift_left_partial(self):
+        self.app.range = 0.1
+        self.loop.run_until_complete(self.app.shift_left())
+        expected_start = 0.44
+        expected_end = 0.54
+        assert (math.isclose(self.app.start, expected_start))
+        assert (math.isclose(self.app.end, expected_end))
+
+    def test_shift_right_partial(self):
+        self.app.range = 0.1
+        self.loop.run_until_complete(self.app.shift_right())
+        expected_start = 0.46
+        expected_end = 0.56
+        assert (math.isclose(self.app.start, expected_start))
+        assert (math.isclose(self.app.end, expected_end))
+
+    def test_zoom_in(self):
+        self.loop.run_until_complete(self.app.zoom_in())
+        assert (math.isclose(self.app.start, 0.05))
+        assert (math.isclose(self.app.end, 0.95))
+
+        self.loop.run_until_complete(self.app.zoom_in())
+        assert (math.isclose(self.app.start, 0.095))
+        assert (math.isclose(self.app.end, 0.905))
+
+    def test_zoom_out(self):
+        self.loop.run_until_complete(self.app.zoom_out())
+        assert (math.isclose(self.app.range, 1.1))
+        assert (math.isclose(self.app.start, -0.05))
+        assert (math.isclose(self.app.end, 1.05))
+
+        self.loop.run_until_complete(self.app.zoom_out())
+        assert (math.isclose(self.app.range, 1.21))
+        assert (math.isclose(self.app.start, -0.105))
+        assert (math.isclose(self.app.end, 1.105))

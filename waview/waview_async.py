@@ -9,7 +9,7 @@ import traceback
 import os
 import numpy as np
 import scipy.signal
-from core import WaviewCore, LoggerWriter, WavType, INT16_MAX
+from .core import WaviewCore, LoggerWriter, WavType, INT16_MAX
 
 LOG = logging.getLogger(__name__)
 
@@ -106,13 +106,22 @@ class WaviewApp():
         self.msg_counter = 0
         self.popup_window = None
         self.points = None
+        self.wavfilepath = None
 
         # Drawing parameters
         self.y_scale = 1.0
-        self.start = 0.0
-        self.end = 1.0
+        self.centroid = 0.5
+        self.range = 1.0
         self.delta_shift = 0.1
         self.delta_zoom = 0.1
+
+    @property
+    def start(self):
+        return self.centroid - (self.range * 0.5)
+
+    @property
+    def end(self):
+        return self.centroid + (self.range * 0.5)
 
     def quit(self):
         for task in asyncio.Task.all_tasks():
@@ -130,35 +139,30 @@ class WaviewApp():
         return self.width - 2
 
     async def refresh_points(self):
-        self.point_type, self.points = await self.core.get_wav(
-            self.wavfilepath, start=self.start, end=self.end,
-            num_points=self.channel_draw_width())
+        if self.wavfilepath:
+            self.point_type, self.points = await self.core.get_wav(
+                self.wavfilepath, start=self.start, end=self.end,
+                num_points=self.channel_draw_width())
+        else:
+            return None, None
 
     async def shift_left(self):
-        shown = self.end - self.start
-        self.start += (self.delta_shift * shown)
-        self.end += self.delta_shift
+        self.centroid -= (self.delta_shift * self.range)
         await self.refresh_points()
         self.redraw()
 
     async def shift_right(self):
-        shown = self.end - self.start
-        self.start -= (self.delta_shift * shown)
-        self.end -= self.delta_shift
+        self.centroid += (self.delta_shift * self.range)
         await self.refresh_points()
         self.redraw()
 
     async def zoom_in(self):
-        shown = self.end - self.start
-        self.start += (shown * self.delta_zoom)
-        self.end -= (shown * self.delta_zoom)
+        self.range *= (1 - self.delta_zoom)
         await self.refresh_points()
         self.redraw()
 
     async def zoom_out(self):
-        shown = self.end - self.start
-        self.start -= (shown * self.delta_zoom)
-        self.end += (shown * self.delta_zoom)
+        self.range *= (1 + self.delta_zoom)
         await self.refresh_points()
         self.redraw()
 
