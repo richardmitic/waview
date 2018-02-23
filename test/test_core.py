@@ -251,10 +251,12 @@ class TestWaview:
 
     def test_zoom_in(self):
         self.loop.run_until_complete(self.app.zoom_in())
+        assert (math.isclose(self.app.range, 0.8))
         assert (math.isclose(self.app.start, 0.1))
         assert (math.isclose(self.app.end, 0.9))
 
         self.loop.run_until_complete(self.app.zoom_in())
+        assert (math.isclose(self.app.range, 0.64))
         assert (math.isclose(self.app.start, 0.18))
         assert (math.isclose(self.app.end, 0.82))
 
