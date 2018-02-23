@@ -8,9 +8,6 @@ import pytest
 from scipy.io import wavfile
 import numpy as np
 
-core = None
-loop = None
-
 INT16_ONE = 1 / INT16_MAX
 
 def resource(filename):

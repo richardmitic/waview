@@ -340,6 +340,3 @@ def main():
         LOG.info(results)
     finally:
         loop.close()
-
-if __name__ == '__main__':
-    main()
