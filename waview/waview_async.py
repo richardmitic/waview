@@ -65,7 +65,6 @@ class ChannelDisplay():
         drawable_peaks = self.reshape_peaks_to_window_size(peaks, w-2)
         free_h = h - 2
         for i, peak in enumerate(drawable_peaks):
-            # LOG.debug(f"{i} {peak}")
             x = i+1
             norm_height = min(int(peak * free_h * y_scale), free_h)
             start_pos = ((free_h - norm_height) // 2) + 1
@@ -82,7 +81,7 @@ class ChannelDisplay():
         centre = int((free_h / 2) + 1)
         for i, peak in enumerate(samples):
             x = i+1
-            y = min(int(peak * free_h * -y_scale), free_h) + centre
+            y = min(int(peak * free_h * -y_scale) + centre, free_h)
             self.win.addch(y, x, '*')
 
     def __draw_text(self, start, end, y_scale):

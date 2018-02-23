@@ -7,6 +7,7 @@ import math
 import numpy as np
 from enum import Enum
 from scipy.io import wavfile
+from scipy.interpolate import interp1d
 from scipy.signal import resample, resample_poly
 
 LOG = logging.getLogger(__name__)
@@ -79,7 +80,6 @@ class WaviewCore():
         tail_size = end - 1 if end > 1 else 0
         head_samples = np.zeros((samples.shape[0], int(head_size * samples.shape[1])))
         tail_samples = np.zeros((samples.shape[0], int(tail_size * samples.shape[1])))
-        # print(head_size, tail_size, head_samples.shape, tail_samples.shape, samples.shape, start_index, end_index)
         samples = np.concatenate((head_samples, samples[:,start_index:end_index], tail_samples), axis=1)
         return samples
 
@@ -128,8 +128,17 @@ class WaviewCore():
             samples = self.load_samples(wav, start, end)
             # Only resample if we've been asked for a specific number of samples.
             # Otherwise just return the samples without alteration.
-            s = resample_poly(samples, num_samps, samples.shape[1], axis=1) if num_samps is not None else samples
-            return s
+            if num_samps is None or samples.shape[1] == num_samps:
+                return samples
+            elif num_samps < samples.shape[1]:
+                out = np.zeros((samples.shape[0], num_samps))
+                for i in range(samples.shape[0]):
+                    xold = np.arange(samples.shape[1])
+                    xnew = np.linspace(0, samples.shape[1], num=num_samps, endpoint=True)
+                    out[i] = np.interp(xnew, xold, samples[i])
+                return out
+            else:
+                return resample_poly(samples, num_samps, samples.shape[1], axis=1)
 
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, perform, wav, start, end, num_samps)
