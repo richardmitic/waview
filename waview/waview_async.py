@@ -113,8 +113,8 @@ class WaviewApp():
         self.y_scale = 1.0
         self.centroid = 0.5
         self.range = 1.0
-        self.delta_shift = 0.1
-        self.delta_zoom = 0.1
+        self.delta_shift = 0.2
+        self.delta_zoom = 0.2
 
     @property
     def start(self):

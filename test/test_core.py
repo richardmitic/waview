@@ -236,35 +236,35 @@ class TestWaview:
     def test_shift_left_partial(self):
         self.app.range = 0.1
         self.loop.run_until_complete(self.app.shift_left())
-        expected_start = 0.44
-        expected_end = 0.54
+        expected_start = 0.43
+        expected_end = 0.53
         assert (math.isclose(self.app.start, expected_start))
         assert (math.isclose(self.app.end, expected_end))
 
     def test_shift_right_partial(self):
         self.app.range = 0.1
         self.loop.run_until_complete(self.app.shift_right())
-        expected_start = 0.46
-        expected_end = 0.56
+        expected_start = 0.47
+        expected_end = 0.57
         assert (math.isclose(self.app.start, expected_start))
         assert (math.isclose(self.app.end, expected_end))
 
     def test_zoom_in(self):
         self.loop.run_until_complete(self.app.zoom_in())
-        assert (math.isclose(self.app.start, 0.05))
-        assert (math.isclose(self.app.end, 0.95))
+        assert (math.isclose(self.app.start, 0.1))
+        assert (math.isclose(self.app.end, 0.9))
 
         self.loop.run_until_complete(self.app.zoom_in())
-        assert (math.isclose(self.app.start, 0.095))
-        assert (math.isclose(self.app.end, 0.905))
+        assert (math.isclose(self.app.start, 0.18))
+        assert (math.isclose(self.app.end, 0.82))
 
     def test_zoom_out(self):
         self.loop.run_until_complete(self.app.zoom_out())
-        assert (math.isclose(self.app.range, 1.1))
-        assert (math.isclose(self.app.start, -0.05))
-        assert (math.isclose(self.app.end, 1.05))
+        assert (math.isclose(self.app.range, 1.2))
+        assert (math.isclose(self.app.start, -0.1))
+        assert (math.isclose(self.app.end, 1.1))
 
         self.loop.run_until_complete(self.app.zoom_out())
-        assert (math.isclose(self.app.range, 1.21))
-        assert (math.isclose(self.app.start, -0.105))
-        assert (math.isclose(self.app.end, 1.105))
+        assert (math.isclose(self.app.range, 1.44))
+        assert (math.isclose(self.app.start, -0.22))
+        assert (math.isclose(self.app.end, 1.22))
