@@ -166,6 +166,12 @@ class WaviewApp():
         await self.refresh_points()
         self.redraw()
 
+    async def reset(self):
+        self.range = 1.0
+        self.centroid = 0.5
+        await self.refresh_points()
+        self.redraw()
+
     async def analyze(self, path):
         self.wavfilepath = path
         self.popup.set_text(f"Analyzing {os.path.basename(path)}")
@@ -186,6 +192,8 @@ class WaviewApp():
             asyncio.ensure_future(self.analyze(path))
         elif key == ord('p'):
             self.toggle_popup()
+        elif key == ord('r'):
+            asyncio.ensure_future(self.reset())
         elif key == curses.KEY_LEFT:
             asyncio.ensure_future(self.shift_left())
         elif key == curses.KEY_RIGHT:
