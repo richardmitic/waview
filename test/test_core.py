@@ -213,6 +213,15 @@ class TestGetWav(BaseTest):
         point_type, points = self.loop.run_until_complete(task)
 
 
+class TestPCM(BaseTest):
+
+    @pytest.mark.parametrize("channels", [1,2,4])
+    def test_define_channels(self, channels):
+        task = self.core.get_samples(resource("chirp.pcm"), channels=channels)
+        points = self.loop.run_until_complete(task)
+        assert (points.shape == (channels, 8820//channels))
+
+
 class TestWaview:
 
     def setup(self):

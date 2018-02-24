@@ -3,6 +3,8 @@ import sys
 import asyncio
 import wave
 import array
+import functools
+import os
 import math
 import numpy as np
 from enum import Enum
@@ -66,12 +68,26 @@ class WaviewCore():
         else:
             return np.expand_dims(samples, 0) # So we can still index the only channel
 
-    def load_samples(self, wav, start, end):
+    def read_samples(self, filepath, channels):
+        "Read samples automatically depending on the file type"
+        root, ext = os.path.splitext(filepath)
+        if ext == ".wav":
+            LOG.info(f"Reading {filepath} as WAV")
+            return wavfile.read(filepath)[1]
+        else:
+            LOG.info(f"File extension for {filepath} unrecognised. Reading as S16_LE PCM with {channels} channels.")
+            samples = np.fromfile(filepath, dtype=np.int16)
+            if channels > 1:
+                return np.reshape(samples, (-1, channels))
+            else:
+                return samples
+
+    def load_samples(self, wav, start, end, channels):
         "Very slow. Run in an async executor."
         if self._sample_cache is not None:
             samples = self._sample_cache
         else:
-            sample_rate, samples = wavfile.read(wav)
+            samples = self.read_samples(wav, channels)
             self._sample_cache = samples
         samples = self.ensure_dimensions(np.divide(samples, float(INT16_MAX)))
         start_index = int(np.clip(start, 0, 1) * samples.shape[1])
@@ -83,7 +99,7 @@ class WaviewCore():
         samples = np.concatenate((head_samples, samples[:,start_index:end_index], tail_samples), axis=1)
         return samples
 
-    async def get_peaks(self, wav, start=0., end=1., num_peaks=None):
+    async def get_peaks(self, wav, start=0., end=1., num_peaks=None, channels=1):
         """ Get the wave peaks for <wav>
             [param] wav Either a file path or file handle of a wav file
             [param] start Start position of wav file [0.0 - 1.0]
@@ -106,14 +122,14 @@ class WaviewCore():
 
         def perform(wav, start, end, num_peaks):
             "Fucntion is slow. Run in an async executor."
-            samples = self.load_samples(wav, start, end)
+            samples = self.load_samples(wav, start, end, channels)
             p = peaks(samples, num_peaks).T
             return p
 
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, perform, wav, start, end, num_peaks)
 
-    async def get_samples(self, wav, start=0., end=1., num_samps=None):
+    async def get_samples(self, wav, start=0., end=1., num_samps=None, channels=1):
         """ Get raw samples for <wav>, resampled to to <num_samps> values.
             [param] wav Either a file path or file handle of a wav file
             [param] start Start position of wav file [0.0 - 1.0]
@@ -123,9 +139,9 @@ class WaviewCore():
             [return] Numpy array of samples
         """
 
-        def perform(wav, start, end, num_samps):
+        def perform(wav, start, end, num_samps, channels):
             "Fucntion is slow. Run in an async executor."
-            samples = self.load_samples(wav, start, end)
+            samples = self.load_samples(wav, start, end, channels)
             # Only resample if we've been asked for a specific number of samples.
             # Otherwise just return the samples without alteration.
             if num_samps is None or samples.shape[1] == num_samps:
@@ -140,18 +156,18 @@ class WaviewCore():
                 return out
 
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, perform, wav, start, end, num_samps)
+        return await loop.run_in_executor(None, perform, wav, start, end, num_samps, channels)
 
-    async def get_wav(self, wav, start=0., end=1., num_points=None):
+    async def get_wav(self, wav, start=0., end=1., num_points=None, channels=1):
         """ Get a view of <wav> with the given parameters, letting Waview choose
             whether to give peaks or samples.
         """
-        samples = self.load_samples(wav, start, end)
+        samples = self.load_samples(wav, start, end, channels)
         samples_per_point = samples.shape[1] / num_points if num_points else -1
         if samples_per_point > 4:
-            data = await self.get_peaks(wav, start, end, num_points)
+            data = await self.get_peaks(wav, start, end, num_points, channels)
             data_type = WavType.PEAKS
         else:
             data_type = WavType.SAMPLES
-            data = await self.get_samples(wav, start, end, num_points)
+            data = await self.get_samples(wav, start, end, num_points, channels)
         return data_type, data

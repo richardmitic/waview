@@ -115,7 +115,7 @@ def with_error_popup(f):
     return wrapped_f
 
 class WaviewApp():
-    def __init__(self, wav=None, yscale=1., centroid=0.5, range=1., deltashift=0.2, deltazoom=0.2):
+    def __init__(self, wav=None, yscale=1., centroid=0.5, range=1.,  channels=1, deltashift=0.2, deltazoom=0.2):
         self.core = WaviewCore()
         self.running = True
         self.update = False
@@ -124,6 +124,7 @@ class WaviewApp():
         self.points = None
         self.popup = None
         self.wavfilepath = wav
+        self.channels = channels
 
         # Drawing parameters
         self.y_scale = yscale
@@ -160,7 +161,7 @@ class WaviewApp():
         if self.wavfilepath:
             self.point_type, self.points = await self.core.get_wav(
                 self.wavfilepath, start=self.start, end=self.end,
-                num_points=self.channel_draw_width())
+                num_points=self.channel_draw_width(), channels=self.channels)
         else:
             return None, None
 
@@ -209,8 +210,8 @@ class WaviewApp():
         elif key == ord('a'):
             # path = "/Users/richard/Developer/waview/resources/a2002011001-e02.wav"
             # path = "/Users/richard/Developer/waview/resources/4-channels.wav"
-            path = "/Users/richard/Developer/waview/resources/395192__killyourpepe__duskwolf.wav"
-            # path = "/Users/richard/Developer/waview/resources/test1.wav"
+            # path = "/Users/richard/Developer/waview/resources/395192__killyourpepe__duskwolf.wav"
+            path = "/Users/richard/Developer/waview/resources/chirp.pcm"
             asyncio.ensure_future(self.analyze(path))
         elif key == ord('p'):
             self.toggle_popup()
