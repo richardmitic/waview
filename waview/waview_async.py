@@ -78,12 +78,14 @@ class ChannelDisplay():
     def __draw_samples(self, samples, y_scale):
         h,w = self.win.getmaxyx()
         free_h = h - 2
-        ys = ((np.copy(samples) * free_h) + free_h) / 2
-        ys = np.clip(ys, 1, h-1).astype(np.int)
+        ys = ((np.copy(samples) * free_h * y_scale) + free_h) / 2
+        clipped = ((ys < 1) * 1) + ((ys > h-1) * -1)
+        ys = np.clip(ys, 1, h-2).astype(np.int)
         xs = np.arange(1, w-1, dtype=np.int)
 
-        for x, y in zip(xs, ys):
-            self.win.addch(y, x, '*')
+        chars = {-1:'▁', 0:'•', 1:'▔'}
+        for x, y, c in zip(xs, ys, clipped):
+            self.win.addch(y, x, chars[c])
 
     def __draw_text(self, start, end, y_scale):
         self.win.addstr(0, 0, f"Channel {self.index} range:{start:.3}-{end:.3} scale:{y_scale:.3} ")
