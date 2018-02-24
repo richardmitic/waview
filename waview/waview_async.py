@@ -98,7 +98,7 @@ class ChannelDisplay():
 
 
 class WaviewApp():
-    def __init__(self):
+    def __init__(self, wav=None, yscale=1., centroid=0.5, range=1., deltashift=0.2, deltazoom=0.2):
         self.core = WaviewCore()
         self.running = True
         self.update = False
@@ -107,14 +107,14 @@ class WaviewApp():
         self.msg_counter = 0
         self.popup_window = None
         self.points = None
-        self.wavfilepath = None
+        self.wavfilepath = wav
 
         # Drawing parameters
-        self.y_scale = 1.0
-        self.centroid = 0.5
-        self.range = 1.0
-        self.delta_shift = 0.2
-        self.delta_zoom = 0.2
+        self.y_scale = yscale
+        self.centroid = centroid
+        self.range = range
+        self.delta_shift = deltashift
+        self.delta_zoom = deltazoom
 
     @property
     def start(self):
