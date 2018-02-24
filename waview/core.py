@@ -130,15 +130,14 @@ class WaviewCore():
             # Otherwise just return the samples without alteration.
             if num_samps is None or samples.shape[1] == num_samps:
                 return samples
-            elif num_samps < samples.shape[1]:
-                out = np.zeros((samples.shape[0], num_samps))
-                for i in range(samples.shape[0]):
-                    xold = np.arange(samples.shape[1])
-                    xnew = np.linspace(0, samples.shape[1], num=num_samps, endpoint=True)
-                    out[i] = np.interp(xnew, xold, samples[i])
-                return out
             else:
-                return resample_poly(samples, num_samps, samples.shape[1], axis=1)
+                out = np.zeros((samples.shape[0], num_samps))
+                xold = np.arange(samples.shape[1])
+                xnew = np.linspace(0, xold[-1], num=num_samps, endpoint=True)
+                for i in range(samples.shape[0]):
+                    f = interp1d(xold, samples[i], kind='cubic')
+                    out[i] = f(xnew)
+                return out
 
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, perform, wav, start, end, num_samps)
