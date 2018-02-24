@@ -7,7 +7,9 @@ import functools
 import os
 import math
 import numpy as np
+import requests
 from enum import Enum
+from urllib.parse import urlparse
 from scipy.io import wavfile
 from scipy.interpolate import interp1d
 from scipy.signal import resample, resample_poly
@@ -68,8 +70,28 @@ class WaviewCore():
         else:
             return np.expand_dims(samples, 0) # So we can still index the only channel
 
+    @staticmethod
+    def get_wav_from_url(url):
+        path = "tmp.wav"
+        try:
+            os.unlink(path)
+        except:
+            pass
+        r = requests.get(url)
+        with open(path, 'wb') as tmp:
+            tmp.write(r.content)
+        samples = wavfile.read(path)[1]
+        os.unlink(path)
+        return samples
+
     def read_samples(self, filepath, channels):
         "Read samples automatically depending on the file type"
+        parseresult = urlparse(filepath)
+        LOG.debug(parseresult)
+        if parseresult.scheme in ["http", "https"]:
+            LOG.info(f"Reading {filepath} as WAV")
+            return self.get_wav_from_url(filepath)
+
         root, ext = os.path.splitext(filepath)
         if ext == ".wav":
             LOG.info(f"Reading {filepath} as WAV")

@@ -24,6 +24,7 @@ class PopupWindow():
         self.set_text("Press 'a' to load a file", show=False)
 
     def draw(self):
+        LOG.debug(f"Drawing popup h:{self.h} w:{self.w} y:{self.y} x:{self.x}")
         self.inner_win.erase()
         self.inner_win.addstr(self.text)
 
@@ -211,7 +212,8 @@ class WaviewApp():
             # path = "/Users/richard/Developer/waview/resources/a2002011001-e02.wav"
             # path = "/Users/richard/Developer/waview/resources/4-channels.wav"
             # path = "/Users/richard/Developer/waview/resources/395192__killyourpepe__duskwolf.wav"
-            path = "/Users/richard/Developer/waview/resources/chirp.pcm"
+            # path = "/Users/richard/Developer/waview/resources/chirp.pcm"
+            path = "http://www.music.helsinki.fi/tmt/opetus/uusmedia/esim/a2002011001-e02.wav"
             asyncio.ensure_future(self.analyze(path))
         elif key == ord('p'):
             self.toggle_popup()
