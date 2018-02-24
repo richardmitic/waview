@@ -21,10 +21,9 @@ class PopupWindow():
         self.outer_win.erase()
         self.outer_win.box()
         self.panel = curses.panel.new_panel(self.outer_win)
-        self.set_text("", show=False)
+        self.set_text("Press 'a' to load a file", show=False)
 
     def draw(self):
-        LOG.debug("draw popup")
         self.inner_win.erase()
         self.inner_win.addstr(self.text)
 
@@ -35,10 +34,12 @@ class PopupWindow():
             self.show()
 
     def show(self):
-        self.panel.show()
+        if self.panel.hidden():
+            self.panel.show()
 
     def hide(self):
-        self.panel.hide()
+        if not self.panel.hidden():
+            self.panel.hide()
 
     def toggle_visible(self):
         if self.panel.hidden():
@@ -99,6 +100,20 @@ class ChannelDisplay():
         self.__draw_text(start, end, y_scale)
 
 
+def with_error_popup(f):
+    async def wrapped_f(*args, **kwargs):
+        app = args[0]
+        try:
+            await f(*args, **kwargs)
+            if app.popup:
+                app.popup.hide()
+        except Exception as e:
+            app = args[0]
+            if app.popup:
+                app.popup.set_text(f"{type(e)}: {e}")
+                app.redraw()
+    return wrapped_f
+
 class WaviewApp():
     def __init__(self, wav=None, yscale=1., centroid=0.5, range=1., deltashift=0.2, deltazoom=0.2):
         self.core = WaviewCore()
@@ -106,9 +121,8 @@ class WaviewApp():
         self.update = False
         self.height = 0
         self.width = 0
-        self.msg_counter = 0
-        self.popup_window = None
         self.points = None
+        self.popup = None
         self.wavfilepath = wav
 
         # Drawing parameters
@@ -141,6 +155,7 @@ class WaviewApp():
     def channel_draw_width(self):
         return self.width - 2
 
+    @with_error_popup
     async def refresh_points(self):
         if self.wavfilepath:
             self.point_type, self.points = await self.core.get_wav(
@@ -183,6 +198,10 @@ class WaviewApp():
         self.popup.hide()
         self.redraw()
 
+    @with_error_popup
+    async def trigger_exception(self):
+        raise Exception("Exception raised for debugging")
+
     def handle_key_press(self, key):
         "Handle key events. Do not call draw() directly from here."
         if key == ord('q'):
@@ -195,6 +214,8 @@ class WaviewApp():
             asyncio.ensure_future(self.analyze(path))
         elif key == ord('p'):
             self.toggle_popup()
+        elif key == ord('t'):
+            asyncio.ensure_future(self.trigger_exception())
         elif key == ord('r'):
             asyncio.ensure_future(self.reset())
         elif key == curses.KEY_LEFT:
