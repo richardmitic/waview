@@ -327,25 +327,3 @@ class WaviewApp():
                 curses.endwin()
 
         return result
-
-
-
-def main():
-    logging.basicConfig(level=logging.DEBUG,
-                        filename="./waview.log",
-                        format='%(asctime)s.%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
-                        datefmt='%Y%m%d-%H%M%S')
-    sys.stdout = LoggerWriter(LOG.debug)
-    sys.stderr = LoggerWriter(LOG.error)
-
-    loop = asyncio.get_event_loop()
-    app = WaviewApp()
-
-    try:
-        tasks = asyncio.gather(
-            app.async_wrapper()
-        )
-        results = loop.run_until_complete(tasks)
-        LOG.info(results)
-    finally:
-        loop.close()
