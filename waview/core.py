@@ -12,7 +12,6 @@ from enum import Enum
 from urllib.parse import urlparse
 from scipy.io import wavfile
 from scipy.interpolate import interp1d
-from scipy.signal import resample, resample_poly
 
 LOG = logging.getLogger(__name__)
 
@@ -84,7 +83,7 @@ class WaviewCore():
         os.unlink(path)
         return samples
 
-    def read_samples(self, filepath, channels):
+    def read_samples_by_file_type(self, filepath, channels):
         "Read samples automatically depending on the file type"
         parseresult = urlparse(filepath)
         LOG.debug(parseresult)
@@ -109,7 +108,7 @@ class WaviewCore():
         if self._sample_cache is not None:
             samples = self._sample_cache
         else:
-            samples = self.read_samples(wav, channels)
+            samples = self.read_samples_by_file_type(wav, channels)
             self._sample_cache = samples
         samples = self.ensure_dimensions(np.divide(samples, float(INT16_MAX)))
         start_index = int(np.clip(start, 0, 1) * samples.shape[1])
