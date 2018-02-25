@@ -133,6 +133,7 @@ class WaviewApp():
         self.range = range
         self.delta_shift = deltashift
         self.delta_zoom = deltazoom
+        self.delta_zoom_y = deltazoom
 
     @property
     def start(self):
@@ -186,6 +187,16 @@ class WaviewApp():
         await self.refresh_points()
         self.redraw()
 
+    async def zoom_in_y(self):
+        self.y_scale += self.delta_zoom_y
+        await self.refresh_points()
+        self.redraw()
+
+    async def zoom_out_y(self):
+        self.y_scale -= self.delta_zoom_y
+        await self.refresh_points()
+        self.redraw()
+
     async def reset(self):
         self.range = 1.0
         self.centroid = 0.5
@@ -221,6 +232,10 @@ class WaviewApp():
             asyncio.ensure_future(self.trigger_exception())
         elif key == ord('r'):
             asyncio.ensure_future(self.reset())
+        elif key == ord('o'):
+            asyncio.ensure_future(self.zoom_in_y())
+        elif key == ord('k'):
+            asyncio.ensure_future(self.zoom_out_y())
         elif key == curses.KEY_LEFT:
             asyncio.ensure_future(self.shift_left())
         elif key == curses.KEY_RIGHT:

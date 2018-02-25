@@ -279,3 +279,19 @@ class TestWaview:
         assert (math.isclose(self.app.range, 1.44))
         assert (math.isclose(self.app.start, -0.22))
         assert (math.isclose(self.app.end, 1.22))
+
+    def test_zoom_in_y(self):
+        for i in range(1, 5):
+            self.loop.run_until_complete(self.app.zoom_in_y())
+            assert (math.isclose(self.app.y_scale, 1 + (self.app.delta_zoom_y * i)))
+            assert (math.isclose(self.app.range, 1))
+            assert (math.isclose(self.app.start, 0))
+            assert (math.isclose(self.app.end, 1))
+
+    def test_zoom_out_y(self):
+        for i in range(1, 5):
+            self.loop.run_until_complete(self.app.zoom_out_y())
+            assert (math.isclose(self.app.y_scale, 1 - (self.app.delta_zoom_y * i)))
+            assert (math.isclose(self.app.range, 1))
+            assert (math.isclose(self.app.start, 0))
+            assert (math.isclose(self.app.end, 1))
