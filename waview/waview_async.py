@@ -149,7 +149,7 @@ class WaviewApp():
         self.running = False
 
     def redraw(self):
-        self.update = True
+        self.draw()
 
     def set_text(self, txt):
         self.text = txt
@@ -297,9 +297,15 @@ class WaviewApp():
         LOG.debug(f"{popup_height, popup_width, y, x}")
         self.popup = PopupWindow(popup_height, popup_width, y, x)
 
+    async def wait_for_key(self):
+        loop = asyncio.get_event_loop()
+        LOG.debug("waiting for key")
+        key = await loop.run_in_executor(None, self.screen.getch)
+        LOG.debug(f"got key {key}")
+        return key
+
     async def async_main(self, screen):
         self.screen = screen
-        self.screen.timeout(0)
         self.height, self.width = screen.getmaxyx()
         self.set_text(f"{self.width}x{self.height}")
 
@@ -308,15 +314,8 @@ class WaviewApp():
         self.redraw()
 
         while self.running:
-            await asyncio.sleep(0)
-
-            key = screen.getch()
-            if (key > -1):
-                self.handle_key_press(key)
-
-            if self.update:
-                self.draw()
-                self.update = False
+            key = await self.wait_for_key()
+            self.handle_key_press(key)
 
     async def async_wrapper(self):
         """Wrapper function that initializes curses and calls another function,
