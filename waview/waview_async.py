@@ -13,6 +13,23 @@ from .core import WaviewCore, LoggerWriter, WavType, INT16_MAX
 
 LOG = logging.getLogger(__name__)
 
+controls = """\
+'↑' - Zoom in
+'↓' - Zoom out
+'→' - Shift right
+'←' - Shift left
+'o' - Increase Y scale
+'k' - Decrease Y scale
+'h' - Display this dialogue
+'r' - Reset display
+'q' - Quit"""
+
+def text_dims(text):
+    h = text.count(os.linesep)
+    w = max(len(line) for line in text.split(os.linesep))
+    return h, w
+
+
 class PopupWindow():
     def __init__(self, h, w, y, x):
         self.h, self.w, self.y, self.x = h, w, y, x
@@ -21,12 +38,16 @@ class PopupWindow():
         self.outer_win.erase()
         self.outer_win.box()
         self.panel = curses.panel.new_panel(self.outer_win)
-        self.set_text("Press 'a' to load a file", show=False)
+        self.set_text("", show=False)
 
     def draw(self):
         LOG.debug(f"Drawing popup h:{self.h} w:{self.w} y:{self.y} x:{self.x}")
         self.inner_win.erase()
         self.inner_win.addstr(self.text)
+
+    def resize(self, h, w, y, x):
+        LOG.debug(f"resizing popup {h} {w} {y} {x}")
+        self.__init__(h,w,y,x)
 
     def set_text(self, text, show=True):
         LOG.debug(f"Setting popup text to {text}")
@@ -211,6 +232,16 @@ class WaviewApp():
         self.popup.hide()
         self.redraw()
 
+    def toggle_controls(self):
+        h,w = self.screen.getmaxyx()
+        ht,wt = text_dims(controls)
+        hp,wp = ht+3, wt+3
+        y = (h - hp) // 2
+        x = (w - wp) // 2
+        self.popup.resize(hp, wp, y, x)
+        self.popup.set_text(controls)
+        self.toggle_popup()
+
     @with_error_popup
     async def trigger_exception(self):
         raise Exception("Exception raised for debugging")
@@ -219,13 +250,8 @@ class WaviewApp():
         "Handle key events. Do not call draw() directly from here."
         if key == ord('q'):
             self.quit()
-        elif key == ord('a'):
-            # path = "/Users/richard/Developer/waview/resources/a2002011001-e02.wav"
-            # path = "/Users/richard/Developer/waview/resources/4-channels.wav"
-            # path = "/Users/richard/Developer/waview/resources/395192__killyourpepe__duskwolf.wav"
-            # path = "/Users/richard/Developer/waview/resources/chirp.pcm"
-            path = "http://www.music.helsinki.fi/tmt/opetus/uusmedia/esim/a2002011001-e02.wav"
-            asyncio.ensure_future(self.analyze(path))
+        elif key == ord('h'):
+            self.toggle_controls()
         elif key == ord('p'):
             self.toggle_popup()
         elif key == ord('t'):
